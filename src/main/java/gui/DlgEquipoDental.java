@@ -4,6 +4,10 @@ import java.awt.EventQueue;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 
+import java.time.LocalDateTime;
+import java.util.List;
+
+import javax.persistence.EntityManager;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
 import javax.swing.JDialog;
@@ -11,6 +15,14 @@ import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JScrollPane;
 import javax.swing.JTextField;
+
+
+import model.Dentista;
+import model.EquipoDental;
+import model.Especialidad;
+
+import util.JPAUtil;
+
 import javax.swing.JTextArea;
 import java.awt.Font;
 
@@ -42,7 +54,7 @@ public class DlgEquipoDental extends JDialog implements ActionListener {
 	private JScrollPane scrollPane;
 	private JTextArea txtSalida;
 
-	// Tipo de operación a procesar: Adicionar, Consultar, Modificar o Eliminar
+	// Tipo de operaciï¿½n a procesar: Adicionar, Consultar, Modificar o Eliminar
 	private int tipoOperacion;
 
 	// Constantes para los tipos de operaciones
@@ -258,30 +270,174 @@ public class DlgEquipoDental extends JDialog implements ActionListener {
 	}
 
 	void cargarDentistas() {
-
+		EntityManager manager = JPAUtil.getEntityManager();
+		String jpql = "select d from Dentista d";
+		
+		try {
+			List<Dentista> lstDentistas = manager.createQuery(jpql, Dentista.class).getResultList();
+			
+			for (Dentista dentista : lstDentistas) {
+				cboDentistas.addItem(dentista);
+			}
+			
+		} finally {
+			manager.close();
+		}
 	}
 
 	void listar() {
+		EntityManager manager = JPAUtil.getEntityManager();
+		String jpql = "select e from EquipoDental e";
 
+		try {
+			List<EquipoDental> lstEquipoDentales = manager.createQuery(jpql, EquipoDental.class).getResultList();
+			
+			for (EquipoDental equipoDental : lstEquipoDentales) {
+				Dentista dentista = equipoDental.getDentista();
+				Especialidad especialidad = dentista.getEspecialidad();
+			
+				imprimir("Nro de equipo........: " + equipoDental.getNroEquipo());
+				imprimir("Nombre...............: " + equipoDental.getNombre());
+				imprimir("Costo................: " + equipoDental.getCosto());
+				imprimir("Fecha adquisiciÃ³n....: " + equipoDental.getFechaAdquisicion().toLocalDate());
+				imprimir("Dentista.............: " + dentista.getCop() + " - " + dentista.getNombreCompleto());
+				imprimir("Correo...............: " + dentista.getCorreo());
+				imprimir("Especialidad.........: " + especialidad.getTitulo());
+				imprimir("Estado...............: " + equipoDental.getEstadoDescripcion());
+				imprimir("-------------------------------------\n");
+			}
+
+
+		} finally {
+			manager.close();
+		}
 	}
 
 	void adicionar() {
 
+		Double costo = Double.parseDouble(txtCosto.getText());
+		String nombre = txtNombre.getText();
+		Dentista dentista = (Dentista) cboDentistas.getSelectedItem();
+		String estado = (String) cboEstados.getSelectedItem();
+
+		LocalDateTime fechaReg = LocalDateTime.now();
+
+		EntityManager manager = JPAUtil.getEntityManager();
+
+		try {
+
+			EquipoDental equipoDental =
+					new EquipoDental(
+							null,
+							nombre,
+							costo,
+							fechaReg,
+							estado,
+							dentista);
+
+			manager.getTransaction().begin();
+			manager.persist(equipoDental);
+			manager.getTransaction().commit();
+
+			mensajeInfo("Equipo dental registrado");
+			limpiar();
+
+		} catch (Exception e) {
+
+			mensajeError("Hubo un error en la transacciÃ³n");
+			e.printStackTrace();
+
+		} finally {
+			manager.close();
+		}
 	}
 	
 	void buscar() {
 
+		Integer nroEquipo =
+				Integer.parseInt(txtNroEquipo.getText());
+
+		EntityManager manager = JPAUtil.getEntityManager();
+
+		try {
+
+			EquipoDental equipoDental =
+					manager.find(EquipoDental.class, nroEquipo);
+
+			if (equipoDental == null) {
+				mensajeAdvertencia("Equipo dental no encontrado");
+				return;
+			}
+
+			txtNombre.setText(equipoDental.getNombre());
+			txtCosto.setText(equipoDental.getCosto() + "");
+			cboDentistas.setSelectedItem(equipoDental.getDentista());
+			cboEstados.setSelectedItem(equipoDental.getEstado());
+
+			txtFechaAdquisicion.setText(
+					equipoDental.getFechaAdquisicion().toString());
+
+			habilitarOk();
+
+		} finally {
+			manager.close();
+		}
 	}
 
 	void modificar() {
 
-	}
+		Integer nroEquipo =
+				Integer.parseInt(txtNroEquipo.getText());
 
+		String nombre =
+				txtNombre.getText();
+
+		Double costo =
+				Double.parseDouble(txtCosto.getText());
+
+		LocalDateTime fechaAdquisicion =
+				LocalDateTime.parse(txtFechaAdquisicion.getText());
+
+		String estado =
+				(String) cboEstados.getSelectedItem();
+
+		Dentista dentista =
+				(Dentista) cboDentistas.getSelectedItem();
+
+		EntityManager manager = JPAUtil.getEntityManager();
+
+		try {
+
+			EquipoDental equipoDental =
+					new EquipoDental(
+							nroEquipo,
+							nombre,
+							costo,
+							fechaAdquisicion,
+							estado,
+							dentista);
+
+			manager.getTransaction().begin();
+			manager.merge(equipoDental);
+			manager.getTransaction().commit();
+
+			mensajeInfo("Equipo dental actualizado");
+			limpiar();
+
+		} catch (Exception e) {
+
+			mensajeError("Hubo un error en la transacciÃ³n");
+			e.printStackTrace();
+
+		} finally {
+			manager.close();
+		}
+	}
 	void eliminar() {
 
 	}
 
-	// Métodos tipo void (con parámetros)
+	// Mï¿½todos tipo void (con parï¿½metros)
 	void habilitarEntradas(boolean sino) {
 		txtNombre.setEditable(sino);
 		txtCosto.setEditable(sino);
